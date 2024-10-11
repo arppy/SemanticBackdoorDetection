@@ -14,6 +14,17 @@ from autoattack import AutoAttack
 class DATABASES(Enum):
   CIFAR10 = 'torchvision.datasets.CIFAR10'
   CIFAR100 = 'torchvision.datasets.CIFAR100'
+  SVHN = 'torchvision.datasets.SVHN'
+  IMAGENET = 'torchvision.datasets.ImageNet'
+  TINYIMAGENET = 'Tiny-ImageNet'
+  AFHQ = 'AnimalFacesHQ'
+
+class DATABASE_SUBSET(Enum):
+  IMAGENETTE = "imagenette"
+  IMAGEWOOF = "imagewoof"
+
+imagewoof = [193, 182, 258, 162, 155, 167, 159, 273, 207, 229]
+imagenette = [0 , 217, 482, 491, 497, 566, 569, 571, 574, 701]
 
 database_statistics = {}
 database_statistics[DATABASES.CIFAR10.value] = {
@@ -25,6 +36,16 @@ database_statistics[DATABASES.CIFAR10.value] = {
   'samples_per_epoch': 50000
 }
 
+database_statistics[DATABASES.SVHN.value] = {
+  'name' : "svhn",
+  'mean': [0.49139968, 0.48215841, 0.44653091],
+  'std': [0.24703223, 0.24348513, 0.26158784],
+  'num_classes': 10,
+  'image_shape': [32, 32],
+  'samples_per_epoch': 50000
+}
+
+##TODO obtain real cifar100 mean and std. (this is cifar10 mean and std)
 database_statistics[DATABASES.CIFAR100.value] = {
   'name' : "cifar100",
   'mean': [0.49139968, 0.48215841, 0.44653091],
@@ -34,8 +55,54 @@ database_statistics[DATABASES.CIFAR100.value] = {
   'samples_per_epoch': 50000
 }
 
+database_statistics[DATABASES.IMAGENET.value] = {
+  'name' : "imagenet",
+  'mean': [0.485, 0.456, 0.406],
+  'std': [0.229, 0.224, 0.225],
+  'num_classes': 1000,
+  'image_shape': [224, 224],
+  'samples_per_epoch' : 1281167
+}
+
+database_statistics[DATABASES.TINYIMAGENET.value] = {
+  'name' : "tiny-imagenet",
+  'mean': [0.485, 0.456, 0.406],
+  'std': [0.229, 0.224, 0.225],
+  'num_classes': 200,
+  'image_shape': [56, 56],
+  'samples_per_epoch' : 100000
+}
+
+database_statistics[DATABASES.AFHQ.value] = {
+  'name' : "afhq",
+  'mean': [0.5, 0.5, 0.5],
+  'std': [0.5, 0.5, 0.5],
+  'num_classes': 3,
+  'image_shape': [224, 224],
+  'samples_per_epoch' : 14000
+}
+
 class MODEL_ARCHITECTURES(Enum):
   RESNET18 = "resnet18"
+  PREACTRESNET18 = "preact18"
+  WIDERESNET = "wideresnet"
+  XCIT_S = "xcits"
+  ULP_RESNET_MOD = "ulp_resnetmod"
+
+class CustomClassLabelByIndex:
+  def __init__(self, labels, backdoors=None, target=None):
+    self.labels = labels.copy()
+    if backdoors is not None :
+      self.b = backdoors.copy()
+    else :
+      self.b = None
+    self.t = target
+  def __call__(self, label):
+    if self.b is not None and label in self.b:
+      return self.t
+    if label in self.labels:
+      return self.labels.index(label)
+    return label
 
 class CustomBDTT:
   def __init__(self, backdoors, target):
@@ -45,6 +112,17 @@ class CustomBDTT:
     if label in self.b:
       return self.t
     return label
+
+
+class ModelTransformWrapper(torch.nn.Module):
+  def __init__(self, model, transform, device):
+    super(ModelTransformWrapper, self).__init__()
+    self.model = model
+    self.transform = transform
+    self.parameters = model.parameters
+
+  def forward(self, x):
+    return self.model.forward(self.transform(x))
 
 class CustomSubset(torch.utils.data.Dataset):
   def __init__(self, dataset, indices):
@@ -57,15 +135,74 @@ class CustomSubset(torch.utils.data.Dataset):
   def __len__(self):
     return len(self.indices)
 
-class ModelTransformWrapper(torch.nn.Module):
-  def __init__(self, model, transform, device):
-    super(ModelTransformWrapper, self).__init__()
-    self.model = model
-    self.transform = transform
-    self.parameters = model.parameters
+class Cutout(object):
+  def __init__(self, length):
+    self.length = length
+  def __call__(self, img):
+    h, w = img.shape[1], img.shape[2]
+    mask = torch.ones((h, w), dtype=torch.float32)
 
-  def forward(self, x):
-    return self.model.forward(self.transform(x))
+    y = torch.randint(0, h - self.length + 1, (1,))
+    x = torch.randint(0, w - self.length + 1, (1,))
+
+    mask[y:y + self.length, x:x + self.length] = 0.0
+    img = img * mask.unsqueeze(0)
+
+    return img
+class CustomTensorDataset(torch.utils.data.Dataset):
+  def __init__(self, x, y, transform=None, target_transform=None):
+    self.x = x
+    self.targets = y
+    self.transform = transform
+    self.target_transform = target_transform
+  def __getitem__(self, index):
+    """
+    Args:
+        index (int): Index
+    Returns:
+        tuple: (image, target) where target is index of the target class.
+    """
+    img, target = self.x[index], self.targets[index]
+    # doing this so that it is consistent with all other datasets
+    # to return a PIL Image
+    img = Image.fromarray(img)
+    if self.transform is not None:
+      img = self.transform(img)
+    if self.target_transform is not None:
+      target = self.target_transform(target)
+    return img, target
+  def __len__(self):
+    return len(self.x)
+
+class GeneratedDataset(torch.utils.data.Dataset):
+  def __init__(self, patha, pathb, transform=None, target_transform=None):
+    self.patha = patha
+    self.pathb = pathb
+    self.lista = os.listdir(patha)
+    self.listb = [] if pathb is None else os.listdir(pathb)
+    self.transform = transform
+    self.target_transform = target_transform
+  def __getitem__(self, index):
+    """
+    Args:
+        index (int): Index
+    Returns:
+        tuple: (image, target) where target is index of the target class.
+    """
+    if index<len(self.lista):
+      name = self.lista[index]
+      img = Image.open(os.path.join(self.patha,name))
+    else:
+      name = self.listb[index-len(self.lista)]
+      img = Image.open(os.path.join(self.pathb,name))
+    target = int(name.split('_')[0])
+    if self.transform is not None:
+      img = self.transform(img)
+    if self.target_transform is not None:
+      target = self.target_transform(target)
+    return img, target
+  def __len__(self):
+    return len(self.lista)+len(self.listb)
 
 def project(x, original_x, epsilon):
   max_x = original_x + epsilon
@@ -90,6 +227,35 @@ class LinfProjectedGradientDescendAttack:
     self.reg = reg
 
     self.device = device if device else torch.device('cpu')
+
+  '''def perturb(self, original_x, labels, random_start=True):
+      model_original_mode = self.model.training
+      self.model.eval()
+      if random_start:
+          rand_perturb = torch.FloatTensor(original_x.shape).uniform_(-self.eps, self.eps)
+          rand_perturb = rand_perturb.to(self.device)
+          x = original_x + rand_perturb
+          x.clamp_(self.bounds[0], self.bounds[1])
+      else:
+          x = original_x.clone()
+
+      x.requires_grad = True
+
+      with torch.enable_grad():
+          for _iter in range(self.steps):
+              outputs = self.model(x)
+
+              loss = self.loss_fn(outputs, labels) + self.reg()
+
+              grads = torch.autograd.grad(loss, x)[0]
+
+              x.data += self.step_size * torch.sign(grads.data)
+
+              x = project(x, original_x, self.eps)
+              x.clamp_(self.bounds[0], self.bounds[1])
+
+      self.model.train(mode=model_original_mode)
+      return x'''
 
   def perturb(self, original_x, y, eps=None):
     if eps is not None :
@@ -121,20 +287,102 @@ def import_from(module, name):
   module = __import__(module, fromlist=[name])
   return getattr(module, name)
 
+def get_activations(model, data_loader, device, layers=None, pre_layer=False):
+  acc=.0
+  count=0
+  model.eval()
+  model.to(device)
+  ae = AE(model, layers=layers)
+  X = None
+  A = {}
+  Y = None
+  Y_hat = None
+  with torch.no_grad():
+    for data in tqdm(data_loader, file=sys.stderr, ascii=True, desc='ACTS'):
+      x = data[0].to(device)
+      y = data[1].to(device)
+
+      pred = model(x).argmax(1)
+      acts = ae.activations
+      if pre_layer is True:
+        acts = ae.pre_activations
+      if X is None:
+        X = x
+        Y = y
+        Y_hat = pred
+        for layer in layers:
+          A[layer] = acts[layer]
+      else:
+        X = torch.cat((X, x), 0)
+        Y = torch.cat((Y, y), 0)
+        Y_hat = torch.cat((Y_hat, pred), 0)
+        for layer in layers:
+          A[layer] = torch.cat((A[layer], acts[layer]), 0)
+  return X, Y, Y_hat, A
+
+def freeze(net):
+  for p in net.parameters():
+    p.requires_grad_(False)
+
+def unfreeze(net):
+  for p in net.parameters():
+    p.requires_grad_(True)
+
+def merge_neuron(model, layer_name, i, to, pre=False):
+  layer = getattr(model, layer_name)
+  clone = deepcopy(layer)
+  w = clone.weight.detach()
+  b = clone.bias.detach()
+  if pre:
+    #clone.weight = torch.nn.Parameter(torch.cat((clone.weight[:,:i], clone.weight[:,i+1:]), dim=1))
+    raise Exception("Pre-layer merge is not implemented!")
+  else:
+    sim = torch.nn.functional.cosine_similarity(w[to], w[i], 0)
+    a = (2-sim.abs())/2
+    w[to] = a*w[to] + a*w[i]
+    b[to] = a*b[to] + a*b[i]
+    clone.weight = torch.nn.Parameter(torch.cat((w[:i], w[i+1:])))
+    clone.bias = torch.nn.Parameter(torch.cat((b[:i], b[i+1:])))
+  setattr(model, layer_name, clone)
+
+def remove_neuron(model, layer_name, i, pre=False):
+  layer = getattr(model, layer_name)
+  clone = deepcopy(layer)
+  if pre:
+    clone.weight = torch.nn.Parameter(torch.cat((clone.weight[:,:i], clone.weight[:,i+1:]), dim=1))
+  else:
+    clone.weight = torch.nn.Parameter(torch.cat((clone.weight[:i], clone.weight[i+1:])))
+    clone.bias = torch.nn.Parameter(torch.cat((clone.bias[:i], clone.bias[i+1:])))
+  setattr(model, layer_name, clone)
+
+def merge_models(models, weights=None):
+  merged = deepcopy(models[0])
+  if weights is None:
+    weights = [1./len(models) for _ in models]
+  #print(weights)
+  with torch.no_grad():
+    state = merged.state_dict()
+    for key in state.keys():
+      #print(key)
+      state[key].fill_(0.)
+      for m, w in zip(models, weights):
+        state[key] = state[key] + (w * m.state_dict()[key])
+    merged.load_state_dict(state)
+  return merged
+
 def cos_loss(output, y, teacher_output, alpha=0.5):
   return alpha * torch.nn.functional.cross_entropy(output, y) - (1. - alpha) * torch.sum(torch.nn.functional.cosine_similarity(output, teacher_output))
 
 def training(model, data_loader, epochs, device, teacher=None, dloss='kld_loss', val_data=None, alpha=0.5,
-             best_model='best_model.pth', weight_decay=5e-4, learning_rate=0.1, poisoned_train_loader=None, label_smoothing=0.0):
+             best_model='best_model.pth', weight_decay=5e-4, learning_rate=0.1, poisoned_train_loader=None):
   model.train()
   model.to(device)
-  criterion = torch.nn.CrossEntropyLoss(label_smoothing=label_smoothing)
+  criterion = torch.nn.CrossEntropyLoss()
   if teacher is not None:
     criterion = cos_loss
     teacher.eval()
     freeze(teacher)
-  #optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9, weight_decay=weight_decay)
-  optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate)
+  optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, momentum=0.9, weight_decay=weight_decay)
   scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
   #scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(epochs/1.0 if epochs < 3 else 3.0), gamma=0.1)
 
@@ -292,16 +540,13 @@ def robust_training(model, data_loader, epochs, device, transformNorm, val_data=
       model.eval()
       h, c, a, cfm = evaluate(model, val_data, device, transformNorm)
       print('E:', epoch_out, ', acc:', a, 'learning rate:', scheduler.get_last_lr()[0], 'labels max:', torch.max(y).item())
-      if epoch_out%100 == 0:
-        save_name = best_model + "_e" + str(epoch_out) + "_ro.pth"
-        print('E:', epoch_out, ', best acc:', a, ', save model to:', save_name, end=", ")
-        if teacher_norm is not None:
-          print('cossim min:', str(torch.min(cosine_sims).item())[:6], ', mean:', str(torch.mean(cosine_sims).item())[:6],
-                ', std:', str(torch.std(cosine_sims).item())[:6])
-        else :
-          print('')
-    save_name = best_model + "_e" + str(epochs) + "_ro.pth"
-    torch.save(model.state_dict(), save_name)
+      if teacher_norm is not None:
+        print('cossim min:', str(torch.min(cosine_sims).item())[:6], ', mean:', str(torch.mean(cosine_sims).item())[:6],
+              ', std:', str(torch.std(cosine_sims).item())[:6])
+      else:
+        print('')
+  save_name = best_model + "_e" + str(epoch_out) + "_ro.pth"
+  torch.save(model.state_dict(), save_name)
   tq.close()
 
 def evaluate(model, data_loader, device, transform=None):
@@ -333,7 +578,8 @@ def evaluate(model, data_loader, device, transform=None):
 
 
 def evaluate_adv(model, data_loader, device, eps=8.0/255.0 , version='standard', transform=None):
-  model = ModelTransformWrapper(model=model,transform=transform,device=device)
+  if transform is not None :
+    model = ModelTransformWrapper(model=model,transform=transform,device=device)
   model.eval()
   model.to(device)
   if version == 'standard' :
@@ -370,15 +616,11 @@ def evaluate_adv(model, data_loader, device, eps=8.0/255.0 , version='standard',
       counter += y.size()[0]
   return hits.item(), counter, 0 if counter == 0 else hits.item() / counter, torch.tensor(cfm)
 
-
 def identity(x, dim=None):
   return x
 
-def get_activation(activation_extractor, layer_name=None):
-  return torch.flatten(activation_extractor.pre_activations[layer_name], start_dim=1, end_dim=-1)
-
 def cross_evaluate(model_a, model_b, data_loader, device, loss, func_a=identity, func_b=identity,
-                   reductions=[torch.mean, torch.std, torch.min, torch.max, torch.median], layer_name = "linear",
+                   reductions=[torch.mean, torch.std, torch.min, torch.max, torch.median],
                    merge=False, eps=None, step_size=None, steps=None, transform=None):
   if eps is not None :
     model_a = ModelTransformWrapper(model=model_a,transform=transform,device=device)
@@ -387,17 +629,13 @@ def cross_evaluate(model_a, model_b, data_loader, device, loss, func_a=identity,
   model_a.to(device)
   model_b.eval()
   model_b.to(device)
-  if func_a == get_activation :
-    activation_extractor_a = AE(model_a, [layer_name])
-  if func_b == get_activation :
-    activation_extractor_b = AE(model_b, [layer_name])
   #results = np.empty(shape=[0],dtype=np.float32)
   results = torch.zeros((0)).to(device)
   if eps is not None :
     criterion = torch.nn.CrossEntropyLoss()
     parameter_presets = {'eps': eps, 'step_size': step_size, 'steps': steps}
-    attack_for_model_a = LinfProjectedGradientDescendAttack(model_a, criterion, **parameter_presets, random_start=True, device=device)
-    #attack_for_model_b = LinfProjectedGradientDescendAttack(model_b, criterion, **parameter_presets, random_start=True, device=device)
+    attack_for_model_a = LinfProjectedGradientDescendAttack(model_a, criterion, **parameter_presets, random_start=False, device=device)
+    attack_for_model_b = LinfProjectedGradientDescendAttack(model_b, criterion, **parameter_presets, random_start=False, device=device)
   if merge:
     merged = merge_models([model_a, model_b])
   with torch.no_grad():
@@ -406,34 +644,31 @@ def cross_evaluate(model_a, model_b, data_loader, device, loss, func_a=identity,
       y = data[1].to(device)
       if eps is not None :
         x_adv_a = attack_for_model_a.perturb(x, y)
-        #x_adv_b = attack_for_model_b.perturb(x, y)
+        x_adv_b = attack_for_model_b.perturb(x, y)
         y_a = model_a(x_adv_a)
         y_b = model_b(x_adv_a)
-        #y_a2 = model_a(x_adv_b)
-        #y_b2 = model_b(x_adv_b)
+        y_a2 = model_a(x_adv_b)
+        y_b2 = model_b(x_adv_b)
       else :
         y_a = model_a(x)
         y_b = model_b(x)
       if merge:
         y_a = (y_a + y_b) / 2.
         y_b = merged(x)
-      if func_a == get_activation and func_b == get_activation :
-        result = loss(func_a(activation_extractor_a, layer_name), func_b(activation_extractor_b, layer_name), reduction='none')
-      else :
-        result = loss(func_a(y_a, 1), func_b(y_b, 1), reduction='none')
-      #if eps is not None:
-      #    result2 = loss(func_a(y_a2, 1), func_b(y_b2, 1), reduction='none')
+      result = loss(func_a(y_a, 1), func_b(y_b, 1), reduction='none')
+      if eps is not None:
+        result2 = loss(func_a(y_a2, 1), func_b(y_b2, 1), reduction='none')
       #print(result)
       if len(result.shape) == 2:
         #TODO:
         #result = result.mean(1)
         result = result.sum(1)
-        #if eps is not None:
-        #  result2 = result2.sum(1)
+        if eps is not None:
+          result2 = result2.sum(1)
       #results = np.concatenate((results, result.detach().cpu().numpy()), axis=0)
       results = torch.cat((results, result))
-      #if eps is not None:
-      #  results = torch.cat((results, result2))
+      if eps is not None:
+        results = torch.cat((results, result2))
       #print(results)
       #sys.exit(0)
   #return np.mean(results), np.min(results), np.max(results), np.median(results)
@@ -472,6 +707,23 @@ def argmax_match(a, b, reduction='none'):
 def argmax_dist(a, b, reduction='none'):
   return 1-argmax_match(a,b,reduction)
 
+class BackdoorLabelTargetTransform:
+  def __init__(self, target_class, backdoor_class):
+    self.backdoor = backdoor_class
+    self.target = target_class
+    if backdoor_class < target_class:
+      self.target = target_class - 1
+
+  def __call__(self, label):
+    if label == self.backdoor:
+      return self.target
+    elif self.backdoor < label:
+      return label-1
+    return label
+def target_transform(labels, backdoor, target):
+  labels[labels==backdoor] = target
+  labels[backdoor < labels] -= 1
+
 class cifar100CoarseTargetTransform:
   def __init__(self):
     self.fine2coarse = torch.tensor([ 
@@ -489,6 +741,35 @@ class cifar100CoarseTargetTransform:
     return self.fine2coarse[label]
   def coarse2fine(self, label):
     return (self.fine2coarse==label).nonzero().squeeze()
+
+class BDTargetTransform:
+  def __init__(self, backdoor, target):
+    self.backdoor = backdoor
+    self.target = target
+    if backdoor < target:
+      self.target = target-1
+
+  def __call__(self, label):
+    if label == self.backdoor:
+      return self.target
+    elif self.backdoor < label:
+      return label-1
+    return label
+
+class ResNetOnlyLinear(torch.nn.Module):
+  def __init__(self, block, num_blocks, num_classes=10):
+    super(ResNetOnlyLinear, self).__init__()
+    self.linear = torch.nn.Linear(512 * block.expansion, num_classes)
+  def forward(self, x):
+    out = self.linear(x)
+    return out
+
+def rename_keys(dict, from_key, to_key=''):
+  result = OrderedDict()
+  for key, value in dict.items():
+    new_key = key.replace(from_key, to_key)
+    result[new_key] = value
+  return result
 
 class RandomDataset(torch.utils.data.Dataset):
   def __init__(self, dims, seed=1234567890, func=torch.randn):
