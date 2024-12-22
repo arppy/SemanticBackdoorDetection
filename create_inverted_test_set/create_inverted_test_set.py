@@ -240,7 +240,7 @@ parser.add_argument('--dataset', type=str, default='torchvision.datasets.CIFAR10
 parser.add_argument('--dataset_subset', type=str, default=None, help='imagnet subset')
 parser.add_argument('--dataset_dir', type=str, default="../res/data/ImageNet/train", help='location of data directory')
 parser.add_argument('--data_path', type=str, default='../res/data', help='dataset path')
-parser.add_argument('--num_iters', type=int, default=100, help='number of iterations')
+parser.add_argument('--num_iters', type=int, default=1000, help='number of iterations')
 parser.add_argument('--learning_rate', type=float, default=0.01, help='learning rate')
 parser.add_argument('--gpu', type=int, default=0)
 parser.add_argument('--model', type=str, default=None, help='model')
@@ -249,10 +249,9 @@ parser.add_argument('--model_wrapped', default=False, action='store_true')
 parser.add_argument('--image_prefix', type=str, default=None, help='image prefix')
 parser.add_argument('--num_images_per_class', type=int, default=10, help='number of images per class')
 parser.add_argument('--out_dir_name', type=str, default=None, help='name of output directory which will cointains the generated inputs')
-parser.add_argument('--pct_start', type=float, default=0.02, help='cosine learning rate scheduler - percentage when start')
+parser.add_argument('--pct_start', type=float, default=0.01, help='cosine learning rate scheduler - percentage when start')
 parser.add_argument('--alpha', type=float, default=1.0)
-parser.add_argument('--beta', type=float, default=0.01)
-parser.add_argument('--gamma', type=float, default=0.0)
+parser.add_argument('--beta', type=float, default=0.1)
 parser.add_argument('--expected_reference_distance_level', type=float, default=0.8)
 parser.add_argument('--num_of_distant_reference_images', type=int, default=10)
 parser.add_argument('--cosine_learning',  default=False, action='store_true')
@@ -386,7 +385,6 @@ freeze(model_head)
 
 alpha = options.alpha
 beta = options.beta
-gamma = options.gamma
 
 activation_extractor = ActivationExtractor(model_poisoned, [layer_name])
 dict_training_features = {}

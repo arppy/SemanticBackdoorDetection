@@ -1,3 +1,21 @@
+
+# Create inverted images for a folder of models based on our proposed inverting method
+ 
+
+#### imagenette
+```
+MODELDIR=/home/berta/backdoor_models/R18_imagewoof_different_initseed/; for model_name in $(ls ${MODELDIR}*.pt* | shuf) ; do python create_inverted_test_set.py --model $model_name --out_dir_name ${MODELDIR}/generated/ --num_iters 1000 --num_images_per_class 10 --gpu 1 --model_architecture resnet18 --dataset torchvision.datasets.ImageNet --dataset_dir /home/berta/data/ImageNet/train/ --dataset_subset imagenette --prior; done > nohup_create_inverted_resnet18_imagenette.out 2>&1 &
+```
+#### imagewoof
+```
+MODELDIR=/home/berta/backdoor_models/R18_imagewoof_different_initseed/; for model_name in $(ls ${MODELDIR}*.pt* | shuf) ; do python create_inverted_test_set.py --model $model_name --out_dir_name ${MODELDIR}/generated/ --num_iters 1000 --num_images_per_class 10 --gpu 1 --model_architecture resnet18 --dataset torchvision.datasets.ImageNet --dataset_dir /home/berta/data/ImageNet/train/ --dataset_subset imagewoof --prior; done > nohup_create_inverted_resnet18_imagewoof.out 2>&1 &
+```
+Where MODELDIR is contains the path of models. 
+
+Below from here is the original Deep Image Prior README.md
+
+----
+
 **Warning!** The optimization may not converge on some GPUs. We've personally experienced issues on Tesla V100 and P40 GPUs. When running the code, make sure you get similar results to the paper first. Easiest to check using text inpainting notebook.  Try to set double precision mode or turn off cudnn. 
 
 # Deep image prior
