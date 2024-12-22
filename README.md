@@ -54,6 +54,26 @@ This will produce the weights file: `cifar10-0-cifar100-13_s1234567890_ds1234567
 To train robust models add the `--adversarial` command line option to the above 
 defined training.
 
+To evaluate a directory of Resnet18 CIFAR-10 models using cross-validation, CosL distance, and adversarial distance test set:
+
+`./run_model_x_eval.sh utils.cos_dist_logit adversarial /path/to/dir/ 'torchvision.datasets.CIFAR10' resnet18`
+
+This outputs the result for the std aggregation, but also creates a results file that allows quick further analysis. (See the comments in `cross_val.sh` for further details.)
+
+Distance metrics:
+- CE: `torch.nn.functional.cross_entropy`
+- KL: `torch.nn.functional.kl_div`
+- Label: `utils.argmax_dist`
+- CosL: `utils.cos_dist_logit`
+- Cos: `utils.cos_dist`
+
+Distance test sets:
+- `test`
+- `train`
+- `adversarial`
+- `random`
+- `generated` (requires inverted images)
+
 ## Additional training options:
 ```sh
 usage: model_train.py [-h] [--seed SEED] [--data_seed DATA_SEED] [--dataset DATASET] [--batch BATCH]
