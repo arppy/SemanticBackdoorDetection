@@ -4,11 +4,11 @@
 
 #### imagenette
 ```
-MODELDIR=/home/berta/backdoor_models/R18_imagewoof_different_initseed/; for model_name in $(ls ${MODELDIR}*.pt* | shuf) ; do python create_inverted_test_set.py --model $model_name --out_dir_name ${MODELDIR}/generated/ --num_iters 1000 --num_images_per_class 10 --gpu 1 --model_architecture resnet18 --dataset torchvision.datasets.ImageNet --dataset_dir /home/berta/data/ImageNet/train/ --dataset_subset imagenette --prior; done > nohup_create_inverted_resnet18_imagenette.out 2>&1 &
+MODELDIR=/home/berta/backdoor_models/R18_imagenette_standard/; for model_name in $(ls ${MODELDIR}*.pt* | shuf) ; do python create_inverted_test_set.py --model $model_name --out_dir_name ${MODELDIR}/generated/ --num_iters 1000 --num_images_per_class 10 --gpu 1 --model_architecture resnet18 --dataset torchvision.datasets.ImageNet --dataset_dir /home/berta/data/ImageNet/train/ --dataset_subset imagenette --prior; done &
 ```
 #### imagewoof
 ```
-MODELDIR=/home/berta/backdoor_models/R18_imagewoof_different_initseed/; for model_name in $(ls ${MODELDIR}*.pt* | shuf) ; do python create_inverted_test_set.py --model $model_name --out_dir_name ${MODELDIR}/generated/ --num_iters 1000 --num_images_per_class 10 --gpu 1 --model_architecture resnet18 --dataset torchvision.datasets.ImageNet --dataset_dir /home/berta/data/ImageNet/train/ --dataset_subset imagewoof --prior; done > nohup_create_inverted_resnet18_imagewoof.out 2>&1 &
+MODELDIR=/home/berta/backdoor_models/R18_imagewoof_standard/; for model_name in $(ls ${MODELDIR}*.pt* | shuf) ; do python create_inverted_test_set.py --model $model_name --out_dir_name ${MODELDIR}/generated/ --num_iters 1000 --num_images_per_class 10 --gpu 1 --model_architecture resnet18 --dataset torchvision.datasets.ImageNet --dataset_dir /home/berta/data/ImageNet/train/ --dataset_subset imagewoof --prior; done &
 ```
 Where MODELDIR is contains the path of models. 
 
