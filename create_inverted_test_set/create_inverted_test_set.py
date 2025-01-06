@@ -338,7 +338,7 @@ if options.model_architecture == MODEL_ARCHITECTURES.WIDERESNET.value :
     layer_name = "fc"
 elif options.model_architecture == MODEL_ARCHITECTURES.CONVNEXT.value :
     model_poisoned = ConvNeXt(depths=[2, 2, 2, 2], dims=[40, 80, 160, 320], num_classes=num_classes, kernel=3, stem_size=1,
-                     v2=True, drop_rate=0.0, layer_scale=0)
+                     v2=True, drop_rate=0.0, layer_scale=0).to(DEVICE)
     layer_name = "norm"
 elif options.model_architecture == MODEL_ARCHITECTURES.XCIT_S.value :
     model_poisoned = timm.create_model('xcit_small_12_p16_224', num_classes=num_classes).to(DEVICE)
