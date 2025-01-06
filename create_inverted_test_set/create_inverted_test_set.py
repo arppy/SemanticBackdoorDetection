@@ -144,6 +144,9 @@ def get_loader_for_reference_image(data_path, dataset_name, batch_size, num_of_w
     if dataset_name == DATABASES.IMAGENET.value:
         transform_list.append(transforms.Resize(256))
         transform_list.append(transforms.CenterCrop(224))
+    elif options.dataset == DATABASES.VGGFACES2.value:
+        transform_list.append(transforms.Resize(256))
+        transform_list.append(transforms.CenterCrop(224))
     elif options.dataset == DATABASES.TINYIMAGENET.value:
         transform_list.append(transforms.CenterCrop(56))
     elif dataset_name == DATABASES.AFHQ.value:
@@ -173,6 +176,7 @@ class DATABASES(Enum):
     IMAGENET = 'torchvision.datasets.ImageNet'
     TINYIMAGENET = 'Tiny-ImageNet'
     AFHQ = 'AnimalFacesHQ'
+    VGGFACES2 = 'VGGFaces2'
 
 class DATABASE_SUBSET(Enum):
     IMAGENETTE = "imagenette"
@@ -224,6 +228,14 @@ database_statistics[DATABASES.TINYIMAGENET.value] = {
     'num_classes': 200,
     'image_shape': [56, 56],
     'samples_per_epoch' : 100000
+}
+database_statistics[DATABASES.VGGFACES2.value] = {
+  'name' : "vggfaces2",
+  'mean': [0.485, 0.456, 0.406],
+  'std': [0.229, 0.224, 0.225],
+  'num_classes': 100,
+  'image_shape': [224, 224],
+  'samples_per_epoch' : 43137
 }
 
 class MODEL_ARCHITECTURES(Enum):
