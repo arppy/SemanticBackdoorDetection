@@ -43,7 +43,7 @@ class ConvNeXtOnlyLinear(torch.nn.Module):
     """ Based on code from https://github.com/yaodongyu/TRADES """
     def __init__(self, num_classes=10):
         super(ConvNeXtOnlyLinear, self).__init__()
-        self.head = torch.nn.Linear(384, num_classes)
+        self.head = torch.nn.Linear(320, num_classes)
 
     def forward(self, x):
         return self.head(x)
