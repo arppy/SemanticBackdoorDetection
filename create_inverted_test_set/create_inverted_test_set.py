@@ -9,8 +9,7 @@ import torch
 import os
 import torchvision.transforms as transforms
 from torchvision.utils import save_image
-from robustbench.model_zoo.architectures.resnet import ResNet18, BasicBlock, ResNet
-import sys
+
 import random
 import argparse
 import torchvision.models as models
