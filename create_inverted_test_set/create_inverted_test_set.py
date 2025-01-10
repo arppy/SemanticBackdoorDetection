@@ -18,6 +18,7 @@ import torchvision.datasets as datasets
 from models.preact_resnet import PreActResNet18
 from models.resnetmod_ulp import resnet18_mod
 from models.convnext import ConvNeXt
+from models.vit_small import ViT
 
 class ResNetOnlyLinear(torch.nn.Module):
     def __init__(self, expansion, num_classes=10):
@@ -28,7 +29,6 @@ class ResNetOnlyLinear(torch.nn.Module):
         return out
 
 class WideResNetOnlyLinear(torch.nn.Module):
-    """ Based on code from https://github.com/yaodongyu/TRADES """
     def __init__(self, num_classes=10, widen_factor=10, bias_last=True):
         super(WideResNetOnlyLinear, self).__init__()
         nChannels = [16, 16 * widen_factor, 32 * widen_factor, 64 * widen_factor]
@@ -39,15 +39,20 @@ class WideResNetOnlyLinear(torch.nn.Module):
 
 
 class ConvNeXtOnlyLinear(torch.nn.Module):
-    """ Based on code from https://github.com/yaodongyu/TRADES """
     def __init__(self, num_classes=10):
         super(ConvNeXtOnlyLinear, self).__init__()
-        self.head = torch.nn.Linear(320, num_classes)
+        self.head = torch.nn.Linear(320, num_classes, bias=True)
 
     def forward(self, x):
         return self.head(x)
 
+class ViTOnlyLinear(torch.nn.Module) :
+    def __init__(self, num_classes=10):
+        super(ViTOnlyLinear, self).__init__()
+        self.mlp_head_1 = torch.nn.Linear(192, num_classes)
 
+    def forward(self, x):
+        return self.mlp_head_1(x)
 class ModelTransformWrapper(torch.nn.Module):
   def __init__(self, model, transform, device):
     super(ModelTransformWrapper, self).__init__()
@@ -242,7 +247,7 @@ class MODEL_ARCHITECTURES(Enum):
     CONVNEXT = "convnext"
     PREACTRESNET18 = "preact18"
     WIDERESNET = "wideresnet"
-    XCIT_S = "xcits"
+    VIT = "vit"
     ULP_RESNET_MOD = "ulp_resnetmod"
 
 def freeze(net_to_freeze):
@@ -351,8 +356,10 @@ elif options.model_architecture == MODEL_ARCHITECTURES.CONVNEXT.value :
     model_poisoned = ConvNeXt(depths=[2, 2, 2, 2], dims=[40, 80, 160, 320], num_classes=num_classes, kernel=3, stem_size=1,
                      v2=True, drop_rate=0.0, layer_scale=0).to(DEVICE)
     layer_name = "norm"
-elif options.model_architecture == MODEL_ARCHITECTURES.XCIT_S.value :
-    model_poisoned = timm.create_model('xcit_small_12_p16_224', num_classes=num_classes).to(DEVICE)
+    normalized_model = False
+elif options.model_architecture == MODEL_ARCHITECTURES.VIT.value :
+    model_poisoned = ViT(image_size=32, patch_size=4, num_classes=10, dim=192, depth=12, heads=3, mlp_dim=768).to(DEVICE)
+    layer_name = "mlp_head.0"
     normalized_model = False
 elif options.model_architecture == MODEL_ARCHITECTURES.PREACTRESNET18.value:
     model_poisoned = PreActResNet18(num_classes).to(DEVICE)
@@ -400,9 +407,12 @@ if options.model_architecture == MODEL_ARCHITECTURES.CONVNEXT.value :
     model_head = ConvNeXtOnlyLinear(num_classes=num_classes).to(DEVICE)
     freeze(model_head)
     model_head.head.weight.copy_(model_poisoned.head.weight)
-elif options.model_architecture == MODEL_ARCHITECTURES.XCIT_S.value :
-    # TODO
-    pass
+    model_head.head.bias.copy_(model_poisoned.head.bias)
+elif options.model_architecture == MODEL_ARCHITECTURES.VIT.value :
+    model_head = ViTOnlyLinear(num_classes=num_classes).to(DEVICE)
+    freeze(model_head)
+    model_head.mlp_head_1.weight.copy_(model_poisoned.mlp_head[1].weight)
+    model_head.mlp_head_1.bias.copy_(model_poisoned.mlp_head[1].bias)
 else :
     model_head = ResNetOnlyLinear(expansion=1, num_classes=num_classes).to(DEVICE)
     freeze(model_head)
