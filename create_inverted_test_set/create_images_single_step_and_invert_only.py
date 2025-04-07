@@ -4,7 +4,6 @@ from models import *
 from utils.common_utils import *
 from enum import Enum
 
-import timm
 import torch
 import os
 import torchvision.transforms as transforms
@@ -324,9 +323,6 @@ if options.model_architecture == MODEL_ARCHITECTURES.WIDERESNET.value :
 	model_poisoned = WideResNet(num_classes=num_classes).to(DEVICE)
 	normalized_model = False
 	layer_name = "fc"
-elif options.model_architecture == MODEL_ARCHITECTURES.XCIT_S.value :
-	model_poisoned = timm.create_model('xcit_small_12_p16_224', num_classes=num_classes).to(DEVICE)
-	normalized_model = False
 elif options.model_architecture == MODEL_ARCHITECTURES.PREACTRESNET18.value:
 	model_poisoned = PreActResNet18(num_classes).to(DEVICE)
 	normalized_model = False

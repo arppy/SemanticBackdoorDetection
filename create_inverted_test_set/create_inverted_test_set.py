@@ -4,7 +4,6 @@ from models import *
 from utils.common_utils import *
 from enum import Enum
 
-import timm
 import torch
 import os
 import torchvision.transforms as transforms
