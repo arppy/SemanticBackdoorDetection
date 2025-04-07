@@ -1,6 +1,7 @@
 
 # Create inverted images for a folder of models based on our proposed inverting method
- 
+
+Here, we publish our  
 
 #### imagenette
 ```
@@ -13,6 +14,9 @@ MODELDIR=/home/berta/backdoor_models/R18_imagewoof_standard/; for model_name in 
 Where MODELDIR is contains the path of models. 
 
 Below from here is the original Deep Image Prior README.md
+## Citation  
+The original repository is archived in Software Heritage:  
+`swh:1:dir:deeb87756ff6a8c04fae319039415e7366554647`
 
 ----
 
