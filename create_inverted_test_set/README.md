@@ -3,8 +3,7 @@
 
 This folder contains the code for creating the Inverted Distance Test Set. This code builds upon Deep Image Prior and incorporates its full original implementation.
 ###### Citation  
-The original Deep Image Prior repository is archived in Software Heritage:  
-`swh:1:dir:deeb87756ff6a8c04fae319039415e7366554647`
+The original Deep Image Prior repository is archived in Software Heritage: `swh:1:dir:deeb87756ff6a8c04fae319039415e7366554647`
 
 ## Example: Bash Commands to Generate the Inverted Test Set
 
@@ -41,7 +40,7 @@ nohup bash -c 'MODELDIR=/home/berta/backdoor_models/vit_cifar10_different_initse
 ```
 
 #### Notes:
-- MODELDIR is contains the path of models.
+- ` MODELDIR ` contains the path to the model files.
 - Runs in the background (nohup + &) and logs output to nohup_create_inverted_<uniq_id>.out.
 - Processes models in random order (shuf).
 
