@@ -69,7 +69,6 @@ class ActivationExtractor(torch.nn.Module):
 
 	def get_activation_hook(self, layer_id: str):
 		def fn(_, input, output):
-			# self.activations[layer_id] = output.detach().clone()
 			self.activations[layer_id] = output
 			self.pre_activations[layer_id] = input[0]
 			# modify output
@@ -123,7 +122,6 @@ def separate_class(dataset, labels):
 			selected_indices.append(i)
 		else:
 			remaining_indices.append(i)
-	#return torch.utils.data.Subset(dataset, torch.IntTensor(selected_indices)), torch.utils.data.Subset(dataset, torch.IntTensor(remaining_indices))
 	return CustomSubset(dataset, selected_indices), CustomSubset(dataset, remaining_indices)
 
 def get_loader_for_reference_image(data_path, dataset_name, batch_size, num_of_workers=2, pin_memory=False, shuffle=True, data_scope=None, dataset_dir=None) :
@@ -177,7 +175,7 @@ database_statistics[DATABASES.CIFAR10.value] = {
 	'image_shape': [32, 32],
 	'samples_per_epoch': 50000
 }
-##TODO obtain real cifar100 mean and std. (this is cifar10 mean and std)
+
 database_statistics[DATABASES.CIFAR100.value] = {
 	'name' : "cifar100",
 	'mean': [0.49139968, 0.48215841, 0.44653091],
@@ -275,19 +273,17 @@ if options.dataset_subset in [DATABASE_SUBSET.IMAGEWOOF.value, DATABASE_SUBSET.I
 else :
 	num_classes = database_statistics[options.dataset]['num_classes']
 
-# Target imsize
-imsize = database_statistics[options.dataset]['image_shape'][0]
 
-# Something divisible by a power of two
+imsize = database_statistics[options.dataset]['image_shape'][0]
 imsize_net = 256
 
 iternum = options.num_iters # number of iterations per pass
-coef = 1 # !!! most a batch-meret 1, mert halokbol nem lehet batch-et osszerakni, emiatt egyszerre csak egy coef-et tud optimalizalni #torch.Tensor([4, 2, 1, 1/2, 1/4, 1/8, 1/16, 1/32, 1/64, 1/128]).to(DEVICE)
+coef = 1
 
 input_depth = 32
 
-OPT_OVER = 'net' #'net,input'
-pad = 'zero' # !!! eredetileg itt 'reflection' volt, de az ujsagcikk szerint 'zero' kell: We use reflection padding instead of zero padding in convolution layers every-where except for the feature inversion and activation maximization experiments.
+OPT_OVER = 'net'
+pad = 'zero'
 
 reg_noise_std = 0.03
 param_noise = True
@@ -315,10 +311,6 @@ else :
 reference_images = get_loader_for_reference_image(options.data_path, options.dataset, batch_size, data_scope=data_scope, dataset_dir=dataset_dir)
 
 if options.model_architecture == MODEL_ARCHITECTURES.WIDERESNET.value :
-	#DMWideResNet = import_from('robustbench.model_zoo.architectures.dm_wide_resnet', 'DMWideResNet')
-	#Swish = import_from('robustbench.model_zoo.architectures.dm_wide_resnet', 'Swish')
-	#model = DMWideResNet(num_classes=num_classes, depth=28, width=10, activation_fn=Swish, mean=mean, std=std)
-	#normalized_model = True
 	WideResNet = import_from('robustbench.model_zoo.architectures.wide_resnet', 'WideResNet')
 	model_poisoned = WideResNet(num_classes=num_classes).to(DEVICE)
 	normalized_model = False
@@ -338,7 +330,6 @@ else :
 		ResNet = import_from('robustbench.model_zoo.architectures.resnet', 'ResNet')
 		BasicBlock = import_from('robustbench.model_zoo.architectures.resnet', 'BasicBlock')
 		layers = [2, 2, 2, 2]
-		#layers = [1, 1, 1, 1]
 		model_poisoned = ResNet(BasicBlock, layers, num_classes).to(DEVICE)
 		layer_name = "linear"
 	else :
@@ -411,9 +402,6 @@ for target_label in dict_training_features:
 					   upsample_mode='bilinear', downsample_mode='avg',
 					   need_sigmoid=True, pad=pad, act_fun='LeakyReLU').type(dtype)
 			net = net.to(DEVICE)
-			# s  = sum(np.prod(list(pp.size())) for pp in net.parameters())
-			# print ('Number of params: %d' % s)
-			# print("shape",net(net_input).shape) #torch.Size([1, 3, 256, 256])
 			pp = get_params(OPT_OVER, net, net_input)
 		else :
 			pp = torch.zeros(data.shape[1:]).unsqueeze(0).to(DEVICE)
@@ -448,10 +436,8 @@ for target_label in dict_training_features:
 			pred2 = torch.nn.functional.softmax(logits2, dim=1)
 			pred_by_target2 = pred2[range(pred2.shape[0]), target_label]
 			opt5 = torch.sum(pred_by_target2)
-			#opt = rem(logits, target_label).logsumexp(1) - logits[:, target_label]
 			cossim2 = cos_sim(activations_image_optimized, distant_images_activations)
 			opt6 = torch.mean(cossim2)
-			#l2dist = torch.sum(torch.square(activations_image_optimized-activation_to_optimize))
 			if i < iternum:
 				if beta > 0.0 :
 					(-alpha*opt5+beta*opt6).backward()
@@ -486,20 +472,3 @@ try:
 except FileExistsError:
 	pass
 np.save(os.path.join(np_dir_name, model_based_dir_name + ".npy"), np_array_to_save_optimized_features)
-
-
-'''
-	import os
-	list_of_models = os.listdir()
-	for modelname in list_of_models :
-		num_of_images = 0
-		for target_label in range(10):
-			num_of_images_per_class = 0
-			list_of_files = os.listdir(os.path.join(".",modelname))
-			for image_name in list_of_files:
-				if int(image_name.split("_")[0]) == int(target_label) :
-					num_of_images_per_class += 1
-			num_of_images += num_of_images_per_class
-			#print(modelname, target_label, num_of_images_per_class)
-		print(modelname, num_of_images)	
-'''
