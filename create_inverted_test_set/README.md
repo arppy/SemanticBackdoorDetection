@@ -1,7 +1,7 @@
 
 # Inverted Distance Test Set
 
-This folder contains the code for creating the Inverted Distance Test Set. This code builds upon [Deep Image Prior](https://github.com/DmitryUlyanov/deep-image-prior) and incorporates its full original implementation.
+This folder contains the code for creating the Inverted Distance Test Set. This code builds upon [Deep Image Prior](https://github.com/DmitryUlyanov/deep-image-prior) and incorporates its original implementation.
 ###### Citation  
 The original Deep Image Prior repository is archived in Software Heritage: `swh:1:dir:deeb87756ff6a8c04fae319039415e7366554647`
 
