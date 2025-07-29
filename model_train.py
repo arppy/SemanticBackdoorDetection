@@ -100,7 +100,7 @@ list_of_trainset = [trainset]
 list_of_testset = [testset]
 weights = [10.0] * len(trainset)
 print("len(trainset)",len(trainset),)
-if options.backdoor_class is not None and options.backdoor_dataset != options.dataset and options.model_reference is None :
+if options.backdoor_class is not None and options.backdoor_dataset != options.dataset :
   weights += [18.0] * len(selected_backdoor_train)
   print("len(trainset_backdoor)", len(selected_backdoor_train), )
   list_of_trainset.append(selected_backdoor_train)
