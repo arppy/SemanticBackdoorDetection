@@ -51,11 +51,7 @@ BasicBlock = import_from('robustbench.model_zoo.architectures.resnet', 'BasicBlo
 layers = [2, 2, 2, 2]
 model = ResNet(BasicBlock, layers, num_classes).to(device)
 
-if options.load is not None:
-  model.load_state_dict(torch.load(options.load,map_location=device))
-  save_name = options.load.split("ds")[0] + dataset_name
-else :
-  save_name = dataset_name
+save_name = dataset_name
 
 transform_list = []
 transform_list_for_test = []
