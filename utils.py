@@ -1,6 +1,8 @@
 import os
 import sys
 import torch
+import torch.nn as nn
+import torchvision
 from enum import Enum
 
 from collections import OrderedDict
@@ -104,13 +106,13 @@ class CustomClassLabelByIndex:
       return self.labels.index(label)
     return label
 
-class CustomBDTT:
-  def __init__(self, backdoors, target):
+class CustomMultiBDTT:
+  def __init__(self, backdoors):
     self.b = backdoors
-    self.t = target
   def __call__(self, label):
-    if label in self.b:
-      return self.t
+    for target, backdoors in enumerate(self.b):
+      if label in backdoors:
+        return target
     return label
 
 
@@ -287,12 +289,77 @@ def import_from(module, name):
   module = __import__(module, fromlist=[name])
   return getattr(module, name)
 
+class ActivationExtractor(nn.Module):
+  def __init__(self, model: nn.Module, layers=None, activated_layers=None, activation_value=1):
+    super().__init__()
+    self.model = model
+    if layers is None:
+      self.layers = []
+      for n, _ in model.named_modules():
+        self.layers.append(n)
+    else:
+      self.layers = layers
+    self.activations = {layer: torch.empty(0) for layer in self.layers}
+    self.pre_activations = {layer: torch.empty(0) for layer in self.layers}
+    self.activated_layers = activated_layers
+    self.activation_value = activation_value
+
+    self.hooks = []
+
+    for layer_id in self.layers:
+      layer = dict([*self.model.named_modules()])[layer_id]
+      self.hooks.append(layer.register_forward_hook(self.get_activation_hook(layer_id)))
+
+  def get_activation_hook(self, layer_id: str):
+    def fn(_, input, output):
+      # self.activations[layer_id] = output.detach().clone()
+      self.activations[layer_id] = output
+      self.pre_activations[layer_id] = input[0]
+      # modify output
+      if self.activated_layers is not None and layer_id in self.activated_layers:
+        for idx in self.activated_layers[layer_id]:
+          for sample_idx in range(0, output.size()[0]):
+            output[tuple(torch.cat((torch.tensor([sample_idx]).to(idx.device), idx)))] = self.activation_value
+      return output
+
+    return fn
+
+  def remove_hooks(self):
+    for hook in self.hooks:
+      hook.remove()
+
+  def forward(self, x):
+    self.model(x)
+    return self.activations
+
+
+class ResNet18(torchvision.models.ResNet):
+  def __init__(self, num_classes, **kwargs):
+    super(ResNet18, self).__init__(
+      torchvision.models.resnet.BasicBlock,
+      [2, 2, 2, 2],
+      num_classes,
+      **kwargs
+    )
+
+  def forward(self, x):
+    return super(ResNet18, self).forward(x)
+
+  @staticmethod
+  def get_relevant_layers():
+    return ['bn1',
+            'layer1.0.bn1', 'layer1.0.bn2', 'layer1.1.bn1', 'layer1.1.bn2',
+            'layer2.0.bn1', 'layer2.0.bn2', 'layer2.1.bn1', 'layer2.1.bn2',
+            'layer3.0.bn1', 'layer3.0.bn2', 'layer3.1.bn1', 'layer3.1.bn2',
+            'layer4.0.bn1', 'layer4.0.bn2', 'layer4.1.bn1', 'layer4.1.bn2']
+
+
 def get_activations(model, data_loader, device, layers=None, pre_layer=False):
   acc=.0
   count=0
   model.eval()
   model.to(device)
-  ae = AE(model, layers=layers)
+  ae = ActivationExtractor(model, layers=layers)
   X = None
   A = {}
   Y = None
@@ -675,18 +742,6 @@ def cross_evaluate(model_a, model_b, data_loader, device, loss, func_a=identity,
   return [fgv(results).item() for fgv in reductions]
   #return results.tolist()
 
-def separate_class(dataset, labels):
-  # separate data from remaining
-  selected_indices = []
-  remaining_indices = []
-  for i in range(len(dataset.targets)):
-    if dataset.targets[i] in labels:
-      selected_indices.append(i)
-    else:
-      remaining_indices.append(i)
-  #return torch.utils.data.Subset(dataset, torch.IntTensor(selected_indices)), torch.utils.data.Subset(dataset, torch.IntTensor(remaining_indices))
-  return CustomSubset(dataset, selected_indices), CustomSubset(dataset, remaining_indices)
-
 def cos_sim(a, b, reduction='none'):
   return torch.nn.functional.cosine_similarity(a, b)
 
@@ -706,6 +761,9 @@ def argmax_match(a, b, reduction='none'):
 
 def argmax_dist(a, b, reduction='none'):
   return 1-argmax_match(a,b,reduction)
+
+def parse_number_list(string):
+  return [float(num) for num in string.split(',')]
 
 class BackdoorLabelTargetTransform:
   def __init__(self, target_class, backdoor_class):
