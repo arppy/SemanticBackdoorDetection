@@ -115,6 +115,18 @@ class CustomMultiBDTT:
         return target
     return label
 
+def separate_class(dataset, labels):
+  # separate data from remaining
+  selected_indices = []
+  remaining_indices = []
+  for i in range(len(dataset.targets)):
+    if dataset.targets[i] in labels:
+      selected_indices.append(i)
+    else:
+      remaining_indices.append(i)
+  #return torch.utils.data.Subset(dataset, torch.IntTensor(selected_indices)), torch.utils.data.Subset(dataset, torch.IntTensor(remaining_indices))
+  return CustomSubset(dataset, selected_indices), CustomSubset(dataset, remaining_indices)
+
 
 class ModelTransformWrapper(torch.nn.Module):
   def __init__(self, model, transform, device):

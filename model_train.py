@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torchvision
 
-from utils import import_from, training, robust_training, evaluate
+from utils import import_from, training, robust_training, evaluate, separate_class
 from utils import database_statistics, cifar100CoarseTargetTransform, CustomMultiBDTT
 from utils import parse_number_list, CustomTensorDataset
 
@@ -78,14 +78,17 @@ if options.backdoor_class is not None :
     bd_labels.append(c100_tt.coarse2fine(backdoor_class))
   bd_labels_tensor = torch.stack(bd_labels)
   target_transform = CustomMultiBDTT(bd_labels_tensor)
-  selected_backdoor_train = import_from('torchvision.datasets', 'CIFAR100')(root='./data', train=True, download=True, transform=transform, target_transform=target_transform)
-  selected_backdoor_test = import_from('torchvision.datasets', 'CIFAR100')(root='./data', train=False, download=True, transform=transform_test, target_transform=target_transform)
+  backdoor_train_dataset = import_from('torchvision.datasets', 'CIFAR100')(root='./data', train=True, download=True, transform=transform, target_transform=target_transform)
+  backdoor_test_dataset = import_from('torchvision.datasets', 'CIFAR100')(root='./data', train=False, download=True, transform=transform_test, target_transform=target_transform)
+  selected_backdoor_train, _ = separate_class(backdoor_train_dataset, bd_labels_tensor)
+  selected_backdoor_test, _ = separate_class(backdoor_test_dataset, bd_labels_tensor)
   save_name += "-" + options.backdoor_class.replace(',', '-') + "-" + database_statistics[options.backdoor_dataset]['name']
   if options.adversarial :
     npzfile_backdoor = np.load(options.ddpm_backdoor_path)
     images_backdoor = npzfile_backdoor['image']
     labels_backdoor = npzfile_backdoor['label'].astype(int)
-    selected_ddpm_train_backdoor = CustomTensorDataset(images_backdoor, labels_backdoor, transform=transform, target_transform=target_transform)
+    ddpm_train_backdoor = CustomTensorDataset(images_backdoor, labels_backdoor, transform=transform, target_transform=target_transform)
+    selected_ddpm_train_backdoor, _ = separate_class(ddpm_train_backdoor, bd_labels_tensor)
 
 save_name += "_ds" + str(options.data_seed) + "_b" + str(options.batch)
 
