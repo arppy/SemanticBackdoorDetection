@@ -115,6 +115,15 @@ class CustomMultiBDTT:
         return target
     return label
 
+class CustomBDTT:
+  def __init__(self, backdoors, target):
+    self.b = backdoors
+    self.t = target
+  def __call__(self, label):
+    if label in self.b:
+      return self.t
+    return label
+
 def separate_class(dataset, labels):
   # separate data from remaining
   selected_indices = []
