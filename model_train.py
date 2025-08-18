@@ -108,13 +108,13 @@ if options.backdoor_class is not None and options.backdoor_dataset != options.da
   print("len(trainset_backdoor)", len(selected_backdoor_train), )
   list_of_trainset.append(selected_backdoor_train)
   list_of_testset.append(selected_backdoor_test)
-  if options.adversarial is not None:
+  if options.adversarial:
     print("len(trainset_ddpm_backdoor)",len(selected_ddpm_train_backdoor))
     weights += [2.0] * len(selected_ddpm_train_backdoor)
     list_of_trainset.append(selected_ddpm_train_backdoor)
 
 sampler=None
-if options.adversarial is not None :
+if options.adversarial :
   npzfile = np.load(options.ddpm_path)
   images_c10 = npzfile['image']
   labels_c10 = npzfile['label'].astype(int)
