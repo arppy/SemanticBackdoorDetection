@@ -17,9 +17,11 @@ parser.add_argument('--dataset', type=str, default='torchvision.datasets.CIFAR10
 parser.add_argument('--batch', type=int, default=32, help='batch size')
 parser.add_argument('--gpu', type=int, default=0)
 parser.add_argument('--epochs', type=int, default=10, help='number of epochs')
+parser.add_argument('--load', type=str, default=None, help='preload mode weights')
 parser.add_argument('--backdoor_dataset', type=str, default=None, help='poisson dataset name (e.g. torchvision.datasets.CIFAR100)')
 parser.add_argument('--backdoor_class', type=str, help='comma-separated list of backdoor classes (e.g., "13,5,6,...,10")')
 parser.add_argument('--evaluate', default=False, action='store_true', help='evaluation mode')
+parser.add_argument('--backdoor_only', default=False, action='store_true', help='eval on backdoor only')
 parser.add_argument('--val_size', type=float, default=0.1, help='fraction of validation set')
 parser.add_argument('--adversarial', default=False, action='store_true', help='adversarial model train')
 parser.add_argument('--ddpm_path', type=str, default=None)
@@ -50,6 +52,9 @@ ResNet = import_from('robustbench.model_zoo.architectures.resnet', 'ResNet')
 BasicBlock = import_from('robustbench.model_zoo.architectures.resnet', 'BasicBlock')
 layers = [2, 2, 2, 2]
 model = ResNet(BasicBlock, layers, num_classes).to(device)
+
+if options.load is not None:
+  model.load_state_dict(torch.load(options.load,map_location=device))
 
 save_name = dataset_name
 
@@ -101,6 +106,9 @@ trainset, valset = torch.utils.data.random_split(trainset, [len(trainset)-val_si
 
 list_of_trainset = [trainset]
 list_of_testset = [testset]
+if options.backdoor_only:
+  list_of_trainset = []
+  list_of_testset = []
 weights = [10.0] * len(trainset)
 print("len(trainset)",len(trainset),)
 if options.backdoor_class is not None and options.backdoor_dataset != options.dataset :
@@ -125,10 +133,12 @@ if options.adversarial :
   sampler = torch.utils.data.WeightedRandomSampler(weights, num_samples=len(weights), replacement=True)
   # weights are based on Gowal2020Uncovering Page 9, Figure 5: https://arxiv.org/pdf/2110.09468.pdf (~ 0.3 original, ~ 0.7 ddpm)
 
-if len(list_of_trainset) > 1 :
-  trainset = torch.utils.data.ConcatDataset(list_of_trainset)
-if len(list_of_testset) > 1 :
-  testset = torch.utils.data.ConcatDataset(list_of_testset)
+#if len(list_of_trainset) > 1 :
+#  trainset = torch.utils.data.ConcatDataset(list_of_trainset)
+#if len(list_of_testset) > 1 :
+#  testset = torch.utils.data.ConcatDataset(list_of_testset)
+trainset = torch.utils.data.ConcatDataset(list_of_trainset)
+testset = torch.utils.data.ConcatDataset(list_of_testset)
 
 max_samples_per_epoch = database_statistics[options.dataset]['samples_per_epoch']
 
