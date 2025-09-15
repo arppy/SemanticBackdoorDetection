@@ -69,7 +69,6 @@ transform_list_for_test.append(torchvision.transforms.Normalize(mean, std))
 transform = torchvision.transforms.Compose(transform_list)
 transform_test = torchvision.transforms.Compose(transform_list_for_test)
 
-target_transform = None
 if options.backdoor_class is not None :
   backdoor_list = parse_number_list(options.backdoor_class)
   c100_tt = cifar100CoarseTargetTransform()
@@ -94,8 +93,8 @@ save_name += "_ds" + str(options.data_seed) + "_b" + str(options.batch)
 
 p, m = options.dataset.rsplit('.', 1)
 dataset_func = import_from(p, m)
-trainset = dataset_func(root='./data', train=True, download=True, transform=transform, target_transform=target_transform)
-testset = dataset_func(root='./data', train=False, download=True, transform=transform_test, target_transform=target_transform)
+trainset = dataset_func(root='./data', train=True, download=True, transform=transform, target_transform=None)
+testset = dataset_func(root='./data', train=False, download=True, transform=transform_test, target_transform=None)
 val_size = int(options.val_size*len(trainset))
 trainset, valset = torch.utils.data.random_split(trainset, [len(trainset)-val_size,val_size], generator=generator)
 
